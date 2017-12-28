@@ -1,0 +1,20 @@
+[package]
+name = "wc"
+version = "0.1.0"
+authors = ["steve"]
+
+[profile.release]
+lto=true
+opt-level = 3
+panic = 'abort'
+debug-assertions = false
+
+[build]
+rustflags = ["-C", "target-cpu=native"]
+
+[dependencies]
+log = { version = "0.4", features = ["max_level_debug", "release_max_level_warn"] }
+env_logger = { version="0.4.3" }
+bytecount = "0.2.0"
+
+
