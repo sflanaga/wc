@@ -3,8 +3,6 @@
 #![allow(unused_imports)]
 
 
-use std::any::Any;
-
 use std::io::stdin;
 use std::io::Write;
 use std::io::Read;
@@ -15,8 +13,12 @@ use std::cmp::Ord;
 extern crate rand;
 extern crate heapsize;
 
+extern crate fnv;
+use self::fnv::FnvHashMap;
+
 use std::collections::HashMap;
 use std::collections::BTreeMap;
+
 
 //use rand;
 use self::rand::Rng;
@@ -119,13 +121,29 @@ where T : Hash+Ord+Rand
         let sec = (elapsed.as_secs() as f64) + (elapsed.subsec_nanos() as f64 / 1000_000_000.0);
         println!("complete {} seconds ", sec);
         println!("did {} iterations with a ending size of {} ", iterations, map.len());
-    } else {
-        let mut map: HashMap<T,T> = if precapacity {
-            HashMap::with_capacity(iterations)
-        } else {
-            HashMap::new()
-        };
 
+        match tx.send(5) {
+           Err(e) => println!("error on send call {}", e),
+            Ok(_) => {}
+        }
+
+        let _res = child.join().unwrap();
+
+        if pause {
+            let mut buf: [u8; 1] = [0; 1];
+            let stdin = ::std::io::stdin();
+            let mut stdin = stdin.lock();
+            let _it = stdin.read(&mut buf[..]);
+        }
+    } else {
+        let mut map = FnvHashMap::default();
+        /*
+        let mut map : HashMap<T,T> = if precapacity {
+            HashMap::with_capacity_and_hasher(iterations, SpookyHash128{})
+        } else {
+            HashMap::with_hasher(SpookyHash128::hash_with_seed(b"hello", 123))
+        };
+        */
         let mut rng = rand::thread_rng();
         for x in 0..iterations {
             map.insert(rng.gen::<T>(), rng.gen::<T>());
@@ -138,19 +156,21 @@ where T : Hash+Ord+Rand
         let sec = (elapsed.as_secs() as f64) + (elapsed.subsec_nanos() as f64 / 1000_000_000.0);
         println!("complete {} seconds ", sec);
         println!("did {} iterations with a ending size of {} ", iterations, map.len());
+
+        match tx.send(5) {
+           Err(e) => println!("error on send call {}", e),
+            Ok(_) => {}
+        }
+
+        let _res = child.join().unwrap();
+
+        if pause {
+            let mut buf: [u8; 1] = [0; 1];
+            let stdin = ::std::io::stdin();
+            let mut stdin = stdin.lock();
+            let _it = stdin.read(&mut buf[..]);
+        }
     }
     
-    match tx.send(5) {
-        Err(e) => println!("error on send call {}", e),
-        Ok(_) => {}
-    }
 
-    let _res = child.join().unwrap();
-
-    if pause {
-        let mut buf: [u8; 1] = [0; 1];
-        let stdin = ::std::io::stdin();
-        let mut stdin = stdin.lock();
-        let _it = stdin.read(&mut buf[..]);
-    }
 }

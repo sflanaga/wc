@@ -1,21 +1,24 @@
+#[macro_use]
 extern crate clap;
+
 use clap::{App, Arg, SubCommand};
 
-// #[macro_use] extern crate log;
-// extern crate env_logger;
-extern crate bytecount;
-use std::borrow::Borrow;
 use std::env::args;
-use std::env::Args;
-use std::path::Path;
-use std::fs::File;
-use std::fs::OpenOptions;
-use std::io::BufReader;
-use std::io::prelude::*;
 use std::time::Instant;
 
+mod wc;
+mod memh;
+
+use memh::map_test;
+
+use wc::mainfile;
+use wc::mainstdin;
+
+use std::io::Read;
+
+
 fn main() {
-    println!("{}", args().nth(0).unwrap());
+    println!("  +  {}", args().nth(0).unwrap());
 
     let matches = App::new("tester")
         .version("1.0")
@@ -23,15 +26,81 @@ fn main() {
         .about("test things")
         .subcommand(
             SubCommand::with_name("wc")
-                .about("word / line couter")
+                .about("line couter")
                 .version("0.1")
                 .author("Someone E. <someone_else@other.com>")
                 //.arg_from_usage("-d, --debug 'Print debug information'"),
-                .arg_from_usage("[input]... 'an optional input file to use'"),
+                .arg_from_usage("[input]... 'an optional input file to use'")
+                .arg(Arg::with_name("slow")
+                    .takes_value(false)
+                    .short("slow")
+                    .help("use slow path for line counting")
+                )
+                
+        )
+        .subcommand(
+            SubCommand::with_name("printbubba")
+                .about("line couter")
+        )
+        .subcommand(
+            SubCommand::with_name("memh")
+                .about("memory test command")
+                .arg(Arg::with_name("iterations")
+                    .index(1)
+                    .required(true)
+                    .help("number of iterations to execute")
+                )
+                .arg(Arg::with_name("pauses")
+                    .takes_value(false)
+                    .short("p")
+                    .help("pause with std in")
+                )
+                .arg(Arg::with_name("capacity")
+                    .takes_value(false)
+                    .short("c")
+                    .help("pre allocate hash size using with_capacity")
+                )
+                .arg(Arg::with_name("tree")
+                    .takes_value(false)
+                    .short("t")
+                    .help("use BTreeMap instead of default HashMap")
+                )
+                .arg(Arg::with_name("u64")
+                    .takes_value(false)
+                    .long("u64")
+                    .help("use u64 int values in map instead of u32")
+                )
         )
         .get_matches();
-    if let Some(matches) = matches.subcommand_matches("wc") {
+
+
+    let now = Instant::now();
+        
+
+    if let Some(matches) = matches.subcommand_matches("memh") {
+            let iterations = value_t!(matches.value_of("iterations"), usize).unwrap_or_else(|e| e.exit());
+            let pause = matches.is_present("pauses");
+            let tree = matches.is_present("tree");
+            let capacity = matches.is_present("capacity");
+            println!("pausing so hit retrun at key points");
+            match matches.is_present("u64") {
+                false => { println!("u32");  map_test::<u32>(pause, iterations, capacity, tree) },
+                true => { println!("u64");   map_test::<u64>(pause, iterations, capacity, tree) },
+            }
+            
+            if pause {
+                let mut buf: [u8; 1] = [0; 1];
+                let stdin = ::std::io::stdin();
+                let mut stdin = stdin.lock();
+                let _it = stdin.read(&mut buf[..]);
+            }
+
+
+    } else if let Some(_matches) = matches.subcommand_matches("printbubba") {
+            println!("printing bubba shrubbery");
+    } else if let Some(matches) = matches.subcommand_matches("wc") {
         println!("sub wc...");
+        let slow = matches.is_present("slow");
         if matches.is_present("input") {
                 println!("input files");
                 let inp_files = matches.values_of("input").unwrap();
@@ -43,9 +112,9 @@ fn main() {
                         println!("file {} == {}", i, f);
                 }
                 */
-                mainfile(inp_files);
+                mainfile(inp_files,slow);
         } else {
-                mainstdin();
+                mainstdin(slow);
         }
         
         if matches.is_present("debug") {
@@ -54,96 +123,10 @@ fn main() {
             println!("wc no debug");
         }
     }
-/*
-    if args().count() > 10 {
-        if args().nth(1).unwrap() == "wc" {
-            let now = Instant::now();
-            if args().count() > 1 {
-                mainfile();
-            } else {
-                mainstdin();
-            }
-            let elapsed = now.elapsed();
-            let sec = (elapsed.as_secs() as f64) + (elapsed.subsec_nanos() as f64 / 1000_000_000.0);
-            println!("{} seconds ", sec);
-        }
-    }
-    */
+        let elapsed = now.elapsed();
+        let sec = (elapsed.as_secs() as f64) + (elapsed.subsec_nanos() as f64 / 1000_000_000.0);
+        println!("{} seconds ", sec);
+
 }
 
 
-fn mainfile<'a, I>(filenames: I) 
-where
-    I: Iterator<Item = &'a str>,
-//     I: IntoIterator,
-//     I::Item: Borrow<&'a str>,
-{
-
-
-    let mut buf: [u8; 1024 * 128] = [0; 1024 * 128];
-
-    for arg in filenames {
-        let a = arg;
-        // let a = arg.borrow();
-        let path = Path::new(&a);
-        let mut f = OpenOptions::new()
-            .read(true)
-            .write(false)
-            .create(false)
-            .open(&path)
-            .unwrap();
-        // let mut f = File::open(&path).unwrap();
-
-        // let mut rdr = BufReader::with_capacity(1024*1024*16, f);
-        let mut lines = 0;
-        println!("reading...");
-        loop {
-            // let len = {
-            //         let buf = rdr.fill_buf().unwrap();
-            //         lines += buf[..].into_iter().filter(|&&b| b == b'\n').count();
-            //         buf.len()
-            // };
-            // rdr.consume(len);
-
-            // if len <= 0 { break; }
-
-            match f.read(&mut buf[..]) {
-                Ok(0) => {
-                    println!("zero returned");
-                    break;
-                }
-                Ok(len) => {
-                    lines += bytecount::naive_count_32(&buf[0..len], b'\n');
-                    //lines += buf[0..len].into_iter().filter(|&&b| b == b'\n').count();
-                    // for i in 0..len {
-                    //         if buf[i] == b'\n' { lines += 1}
-                    // }
-                }
-                Err(_) => break,
-            };
-        }
-        println!("{} had {} lines", path.to_str().unwrap(), lines);
-    }
-}
-
-fn mainstdin() {
-    let mut buffer = [0u8; 1024 * 128];
-    let stdin = ::std::io::stdin();
-    let mut stdin = stdin.lock();
-    let mut wc = 0usize;
-    loop {
-        match stdin.read(&mut buffer) {
-            Ok(0) => {
-                break;
-            }
-            Ok(len) => {
-                wc += bytecount::naive_count_32(&buffer[0..len], b'\n');
-                //wc += buffer[0..len].into_iter().filter(|&&b| b == b'\n').count();
-            }
-            Err(err) => {
-                panic!("{}", err);
-            }
-        }
-    }
-    println!("{}", wc);
-}
