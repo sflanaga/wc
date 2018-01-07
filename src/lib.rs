@@ -51,3 +51,13 @@ pub fn greek(v: f64) -> String {
 	// 	_ => v,
 	// }
 }
+
+use std::io::Read;
+
+pub fn user_pause() {
+    println!("hi enter to continue...");
+    let mut buf: [u8; 1] = [0; 1];
+    let stdin = ::std::io::stdin();
+    let mut stdin = stdin.lock();
+    let _it = stdin.read(&mut buf[..]);
+}

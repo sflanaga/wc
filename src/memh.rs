@@ -105,11 +105,28 @@ where T : Hash+Ord+Rand
         .unwrap();
 
     let now = Instant::now();
+    let mut rng = rand::thread_rng();
+
+    // common closing code for each type of test
+    let finish = |len| {
+        let elapsed = now.elapsed();
+        let sec = (elapsed.as_secs() as f64) + (elapsed.subsec_nanos() as f64 / 1000_000_000.0);
+        println!("complete {} seconds ", sec);
+        println!("did {} iterations with a ending size of {} ", iterations, len);
+
+        match tx.send(5) {
+           Err(e) => println!("error on send call {}", e),
+            Ok(_) => {}
+        }
+
+        let _res = child.join().unwrap();
+        user_pause("pausing but still holding memory...");
+    };
 
     if tree {
+        println!("btree");
         let mut map: BTreeMap<T,T> = BTreeMap::new();
 
-        let mut rng = rand::thread_rng();
         for x in 0..iterations {
             map.insert(rng.gen::<T>(), rng.gen::<T>());
             if x % 100 == 0 {
@@ -117,34 +134,10 @@ where T : Hash+Ord+Rand
                 LEN.store(map.len(), Ordering::SeqCst);
             }
         }
-        let elapsed = now.elapsed();
-        let sec = (elapsed.as_secs() as f64) + (elapsed.subsec_nanos() as f64 / 1000_000_000.0);
-        println!("complete {} seconds ", sec);
-        println!("did {} iterations with a ending size of {} ", iterations, map.len());
 
-        match tx.send(5) {
-           Err(e) => println!("error on send call {}", e),
-            Ok(_) => {}
-        }
-
-        let _res = child.join().unwrap();
-
-        if pause {
-            let mut buf: [u8; 1] = [0; 1];
-            let stdin = ::std::io::stdin();
-            let mut stdin = stdin.lock();
-            let _it = stdin.read(&mut buf[..]);
-        }
+        finish(map.len());
     } else {
         let mut map = FnvHashMap::default();
-        /*
-        let mut map : HashMap<T,T> = if precapacity {
-            HashMap::with_capacity_and_hasher(iterations, SpookyHash128{})
-        } else {
-            HashMap::with_hasher(SpookyHash128::hash_with_seed(b"hello", 123))
-        };
-        */
-        let mut rng = rand::thread_rng();
         for x in 0..iterations {
             map.insert(rng.gen::<T>(), rng.gen::<T>());
             if x % 100 == 0 {
@@ -152,25 +145,17 @@ where T : Hash+Ord+Rand
                 LEN.store(map.len(), Ordering::SeqCst);
             }
         }
-        let elapsed = now.elapsed();
-        let sec = (elapsed.as_secs() as f64) + (elapsed.subsec_nanos() as f64 / 1000_000_000.0);
-        println!("complete {} seconds ", sec);
-        println!("did {} iterations with a ending size of {} ", iterations, map.len());
 
-        match tx.send(5) {
-           Err(e) => println!("error on send call {}", e),
-            Ok(_) => {}
-        }
-
-        let _res = child.join().unwrap();
-
-        if pause {
-            let mut buf: [u8; 1] = [0; 1];
-            let stdin = ::std::io::stdin();
-            let mut stdin = stdin.lock();
-            let _it = stdin.read(&mut buf[..]);
-        }
+        finish(map.len());
     }
-    
 
+    user_pause("pausing but holding remaining memory after freeing primary");
+}
+
+pub fn user_pause(msg: &str) {
+    println!("{}",msg);
+    let mut buf: [u8; 1] = [0; 1];
+    let stdin = ::std::io::stdin();
+    let mut stdin = stdin.lock();
+    let _it = stdin.read(&mut buf[..]);
 }

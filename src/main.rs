@@ -70,6 +70,11 @@ fn main() {
                     .long("u64")
                     .help("use u64 int values in map instead of u32")
                 )
+                .arg(Arg::with_name("fnv")
+                    .takes_value(false)
+                    .long("fnv")
+                    .help("use FNV hash map for faster small key hashing")
+                )
         )
         .get_matches();
 
