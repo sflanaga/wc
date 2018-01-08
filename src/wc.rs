@@ -5,6 +5,7 @@ use std::borrow::Borrow;
 use std::path::Path;
 use std::fs::OpenOptions;
 use std::io::prelude::*;
+use std::io::Error;
 use std::thread;
 // use std::io::StdinLock;
 // use std::io::StdinLock::read;
@@ -67,6 +68,24 @@ where
                 };
             }
         } else {
+            // Option<Result<String, Error>> 
+
+            let mut rdr = BufReader::with_capacity(1024*1024*1, f);
+            loop {
+                match fast_read_line(&mut rdr) {
+                    Some(x) => {
+                        match x {
+                            Ok(s) => {
+                                lines +=1;
+                                bc += s.len();
+                            },
+                            Err(e) => panic!("fast read line {}", e),
+                        }
+                    },
+                    None => break
+                };
+            }
+            /* 
             let mut rdr = BufReader::with_capacity(1024*1024*1, f);
             //let mut alllines = vec![];
             loop {
@@ -83,6 +102,8 @@ where
                     _ => break,
                 }
             }
+            */
+
             //for x in alllines { println!("{}", x);}
 
 /*
@@ -132,3 +153,16 @@ pub fn mainstdin(slow: bool) {
     }
     println!("lines: {}  bytes: {} ", wc, bc);
 }
+
+pub fn fast_read_line(rdr : &mut BufRead) -> Option<Result<String, Error>> {
+    let mut myvec = vec![];
+    match rdr.read_until(b'\n', &mut myvec) {
+        Ok(0) => Option::None,
+        Ok(s) => {
+            let string = unsafe { String::from_utf8_unchecked(myvec) };
+            Option::Some(Ok(string))
+        },
+        Err(e) => Some(Err(e))
+    }
+}
+
