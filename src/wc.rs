@@ -11,6 +11,7 @@ use std::thread;
 // use std::io::StdinLock::read;
 use std::io::Read;
 use std::io::BufReader;
+use std::io::BufRead;
 
 pub fn mainfile<'a, I>(filenames: I, _slow: bool) 
 where
@@ -39,8 +40,8 @@ where
         let mut bc = 0usize;
 
         println!("reading...");
-        if ( !_slow ) {
-
+        if !_slow  {
+            println!("fast read");
             loop {
                 // let len = {
                 //         let buf = rdr.fill_buf().unwrap();
@@ -69,7 +70,7 @@ where
             }
         } else {
             // Option<Result<String, Error>> 
-
+            /*
             let mut rdr = BufReader::with_capacity(1024*1024*1, f);
             loop {
                 match fast_read_line(&mut rdr) {
@@ -85,12 +86,12 @@ where
                     None => break
                 };
             }
-            /* 
-            let mut rdr = BufReader::with_capacity(1024*1024*1, f);
-            //let mut alllines = vec![];
+            */
+
+            /*            
             loop {
                 let mut myvec = vec![];
-                match rdr.read_until(b'\n', &mut myvec) {
+                match f.read_until(b'\n', &mut myvec) {
                     Ok(s) => {
                         //println!("{:?}", myvec);
                         if s == 0 { break; }
@@ -106,13 +107,23 @@ where
 
             //for x in alllines { println!("{}", x);}
 
-/*
-            let mut rdr = BufReader::with_capacity(1024*1024*1, f);
+            println!("reading primitive");
+            let mut rdr = BufReader::new(f);
+            let mut mystr = String::new();
+            loop{
+                match rdr.read_line(&mut mystr) {
+                    Ok(s) => {  lines += 1; bc += bc}
+                    Ok(0) => break,
+                    Err(e) => panic!("error {}",e),
+                }
+            }
+            /*
             for _line in rdr.lines() {
                 lines += 1;
                 bc += _line.unwrap().len();
             }
-  */          
+            */
+            
         } // 💯
         println!("{} had {} lines and {} bytes", path.to_str().unwrap(), lines, bc);
     }
@@ -153,8 +164,26 @@ pub fn mainstdin(slow: bool) {
     }
     println!("lines: {}  bytes: {} ", wc, bc);
 }
+pub fn fast_read_line(rdr : &mut BufRead,  mut buf: &mut Vec<u8>) -> Option<Result<String, Error>> {
+    
+    let result = { rdr.read_until(b'\n', &mut buf) };
+    let newbuf = buf.clone();
+    match result {
+        Ok(0) => Option::None,
+        Ok(s) => {
+            //let buf = buf.into_inner();
+            //let buf2 = *buf;
+            let line2 = unsafe { String::from_utf8(newbuf).unwrap() } ;
+            buf.clear();
+            //Option::Some(Ok(String::from(string)))
+            Option::Some(Ok(line2))
+        },
+        Err(e) => Some(Err(e))
+    }
+}
 
-pub fn fast_read_line(rdr : &mut BufRead) -> Option<Result<String, Error>> {
+
+pub fn fast_read_line__(rdr : &mut BufRead) -> Option<Result<String, Error>> {
     let mut myvec = vec![];
     match rdr.read_until(b'\n', &mut myvec) {
         Ok(0) => Option::None,

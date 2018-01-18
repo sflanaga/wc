@@ -4,11 +4,26 @@ version = "0.1.0"
 authors = ["steve"]
 
 [profile.release]
-#lto=true
+lto=true
 opt-level = 3
 panic = 'abort'
 debug-assertions = false
 target-cpus='native'
+
+[[bin]]
+name = "text"
+path = "src/text.rs"
+crate-type = ["bin"] 
+
+[[bin]]
+name = "wc"
+path = "src/main.rs"
+crate-type = ["bin"] 
+
+[[bin]]
+name = "gb"
+path = "src/gb.rs"
+crate-type = ["bin"] 
 
 [dependencies]
 bytecount = "0.2.0"

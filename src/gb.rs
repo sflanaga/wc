@@ -3,8 +3,6 @@
 use std::io::prelude::*;
 use std::fs::OpenOptions;
 
-use std::io::Error;
-use std::string;
 use std::string::String;
 use std::env::args;
 use std::io::Read;
@@ -32,11 +30,6 @@ struct KeySum {
     count : u64
 }
 
-enum FieldType { 
-    key,
-}
-
-
 
 fn main() {
     let d = args().nth(1).unwrap().chars().nth(0).unwrap();
@@ -48,164 +41,103 @@ fn main() {
         Err(e) => { println!("cannot parse option {} so skipping the unique key thing here, but the error was: {}", unique_count, e); 1000000 }
     };
 
-    
+    let key_fields : Vec<usize> = key_fields.split(",").map(|x| x.parse::<usize>().unwrap()).collect();
 
-    let myvec : &mut Vec<u8> = &mut vec![];
-
-    let kf = &mut vec![0usize;0];
-    for x in key_fields.split(",") {
-        kf.push(x.parse::<usize>().unwrap());
-    }
     let mut hm : BTreeMap<String, KeySum> = BTreeMap::new();
 
-    for p in args().skip(4) {
-        let metadata = fs::metadata(p.clone()).unwrap();
-        print!("processing file: {} of {} ... ", p, greek(metadata.len() as f64),);
-        std::io::stdout().flush().ok().expect("Could not flush stdout");
+    if args().len() >= 5 {
+
+        for p in args().skip(4) {
+            let metadata = fs::metadata(p.clone()).unwrap(); //ok().expect(format!("could not get meta data for file {}", forerror_msg.to_string())); // unwrap();
+            print!("processing file: {} of {} ... ", p, greek(metadata.len() as f64),);
+            std::io::stdout().flush().ok().expect("Could not flush stdout");
+            let start_f = Instant::now();
+
+            let f = match OpenOptions::new()
+                    .read(true)
+                    .write(false)
+                    .create(false)
+                    .open(p.clone())
+                    {
+                        Ok(f) => f,
+                        Err(e) => panic!("cannot open file \"{}\" due to this error: {}",p, e),
+                    };
+            let mut rdr = BufReader::with_capacity(1024*1024*4,f);
+
+            let (_bc,lines) = read_file(&mut rdr,&mut hm, d, & key_fields, unique_c_field);
+
+            let elapsed = start_f.elapsed();
+            let sec = (elapsed.as_secs() as f64) + (elapsed.subsec_nanos() as f64 / 1000_000_000.0);
+            let rate : f64= metadata.len() as f64 / sec;
+            println!(" had {} lines, time: {} secs rate: {}/s",lines, sec, greek(rate));
+
+        } // per file loop
+    } else { // read stdin
         let start_f = Instant::now();
-
-        let mut f = match OpenOptions::new()
-                .read(true)
-                .write(false)
-                .create(false)
-                .open(p.clone())
-                {
-                    Ok(f) => f,
-                    Err(e) => panic!("cannot open file \"{}\" due to this error: {}",p, e),
-                };
-        let mut lines = 0;
-        let mut bc = 0usize;
-
-        let mut rdr = BufReader::new(f);
-        let myvec : &mut Vec<u8> = &mut vec![];
-
-        let mut ss : String = String::with_capacity(256);
-        let mut it : [String;10] = Default::default();
-        let mut uf : String = String::with_capacity(256);
-        for _line in rdr.lines() {
-
-            lines += 1;
-            let l = _line.unwrap();
-            bc += l.len();
-
-            // 4,1,2
-            uf.clear();
-            for (i,f) in l.split(d).enumerate() {
-                for(j,index) in kf.iter().enumerate() {
-                    
-                    if *index == i {
-                        it[j].clear();
-                        it[j].push_str(f); // = f.to_string();
-                    }
-
-                    if unique_c_field == i {
-                        // println!("u:  {}", f);
-                        uf.push_str(f);
-                    }
-                }
-            }
-
-            ss.clear();
-            for i in 0..(kf.len()-1) {
-                if i != kf.len()-1 {
-                    ss.push_str(&it[i]);
-                    ss.push_str("|");
-                } else { ss.push_str(&it[i]); }
-            }
-
-            for pp in it.iter() { ss.push_str(pp); }
-            {
-                let v = hm.entry(ss.clone()).or_insert(KeySum{ count : 0, unique_values: BTreeSet::new() });
-                v.count = v.count +1;
-                if uf.len() > 0 {
-                    v.unique_values.insert(uf.clone());
-                }
-
-            }
-        } // lines loop
+        
+        let stdin = std::io::stdin();
+        let mut handle = stdin.lock();
+        println!("reading stdin...");
+        let (bc,lines) = read_file(&mut handle, &mut hm, d, &key_fields, unique_c_field);
         let elapsed = start_f.elapsed();
         let sec = (elapsed.as_secs() as f64) + (elapsed.subsec_nanos() as f64 / 1000_000_000.0);
-        let rate : f64= metadata.len() as f64 / sec;
+        let rate : f64= bc as f64 / sec;
         println!(" had {} lines, time: {} secs rate: {}/s",lines, sec, greek(rate));
-
-    } // per file loop
+    }
 
     for (ff,cc) in &hm {
         println!("{} <=> {}  {}", ff,cc.count, cc.unique_values.len());
-    }        
-
-
+    }
 }
 
-/*
+fn read_file(rdr: &mut BufRead, hm : &mut BTreeMap<String, KeySum>, delimiter: char, key_fields : & Vec<usize>, unique_c_field: usize) -> (usize,usize) {
+    let mut lines = 0;
+    let mut bytes = 0usize;
 
-fn read_file(rdr: BufReader, hm : &mut BTreeMap<String, KeySum>, filename: String) {
+    let mut ss : String = String::with_capacity(256);
+    let mut it : [String;3] = Default::default();
+    let mut unique_count_field : String = String::with_capacity(256);
+    for _line in rdr.lines() {
+        lines += 1;
+        let l = _line.unwrap();
+        bytes += l.len()+1;
 
-        // let mut f = match OpenOptions::new()
-        //         .read(true)
-        //         .write(false)
-        //         .create(false)
-        //         .open(filename.clone())
-        //         {
-        //             Ok(f) => f,
-        //             Err(e) => panic!("cannot open file \"{}\" due to this error: {}",filename, e),
-        //         };
-        let mut lines = 0;
-        let mut bc = 0usize;
+        for i in 0..(key_fields.len()) { it[i].clear(); }
 
-        let mut rdr = BufReader::new(f);
-        let myvec : &mut Vec<u8> = &mut vec![];
+        let mut pushed_count = 0;
 
-        let mut ss : String = String::with_capacity(256);
-        let mut it : [String;10] = Default::default();
-        let mut uf : String = String::with_capacity(256);
-        for _line in rdr.lines() {
-
-            lines += 1;
-            let l = _line.unwrap();
-            bc += l.len();
-
-            // 4,1,2
-            uf.clear();
-            for (i,f) in l.split(d).enumerate() {
-                for(j,index) in kf.iter().enumerate() {
-                    
-                    if *index == i {
-                        it[j].clear();
-                        it[j].push_str(f); // = f.to_string();
-                    }
-
-                    if unique_c_field == i {
-                        // println!("u:  {}", f);
-                        uf.push_str(f);
-                    }
-                }
-            }
-
-            ss.clear();
-            for i in 0..(kf.len()-1) {
-                if i != kf.len()-1 {
-                    ss.push_str(&it[i]);
-                    ss.push_str("|");
-                } else { ss.push_str(&it[i]); }
-            }
-
-            for pp in it.iter() { ss.push_str(pp); }
-            {
-                let v = hm.entry(ss.clone()).or_insert(KeySum{ count : 0, unique_values: BTreeSet::new() });
-                v.count = v.count +1;
-                if uf.len() > 0 {
-                    v.unique_values.insert(uf.clone());
+        unique_count_field.clear();
+        for (i,field) in l.split(delimiter).enumerate() {
+            for(j,index) in key_fields.iter().enumerate() {
+                if *index == i {
+                    it[j].push_str(field);
+                    pushed_count += 1;
                 }
 
+                if unique_c_field == i {
+                    unique_count_field.push_str(field);
+                }
             }
-        } // lines loop
-        let elapsed = start_f.elapsed();
-        let sec = (elapsed.as_secs() as f64) + (elapsed.subsec_nanos() as f64 / 1000_000_000.0);
-        let rate : f64= metadata.len() as f64 / sec;
-        println!(" had {} lines, time: {} secs rate: {}/s",lines, sec, greek(rate));
-}
-*/
+        }
+
+        ss.clear();
+        for i in 0..pushed_count {
+            if i != pushed_count -1 {
+                ss.push_str(&it[i]);
+                ss.push_str("|");
+            } else { ss.push_str(&it[i]); }
+        }
+        {
+            let v = hm.entry(ss.clone()).or_insert(KeySum{ count : 0, unique_values: BTreeSet::new() });
+            v.count = v.count +1;
+            if unique_count_field.len() > 0 {
+                v.unique_values.insert(unique_count_field.clone());
+            }
+
+        }
+    } // lines loop
+    (bytes,lines)
+} // END read_file
 
 
 
@@ -244,12 +176,6 @@ pub fn greek(v: f64) -> String {
 	if s.ends_with(".") {
 		s.pop();
 	}
-	
 
 	format!("{}{}", s, t.1)
-	// match v {
-	// 	(std::ops::Range {start: 0, end: (KK - GR_BACKOFF)}) => v,
-	// 	//KK-GR_BACKOFF .. MM-(GR_BACKOFF*KK)			=> v,
-	// 	_ => v,
-	// }
 }
