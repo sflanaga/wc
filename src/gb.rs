@@ -36,12 +36,19 @@ fn main() {
     let key_fields = args().nth(2).unwrap();
     let unique_count = args().nth(3).unwrap();
 
-    let unique_c_field = match unique_count.parse::<usize>() {
+    let unique_c_field = match unique_count.parse::<i32>() {
         Ok(x) => x,
-        Err(e) => { println!("cannot parse option {} so skipping the unique key thing here, but the error was: {}", unique_count, e); 1000000 }
+        Err(e) => { println!("cannot parse option {} so skipping the unique key thing here, but the error was: {}", unique_count, e); -1 }
     };
 
     let key_fields : Vec<usize> = key_fields.split(",").map(|x| x.parse::<usize>().unwrap()).collect();
+
+    let mut maxfield = if unique_c_field < 0 { 0 } else { unique_c_field as usize};
+    for x in key_fields.clone() {
+        if x+1 > maxfield { maxfield = x+1; }
+    }
+
+    println!("maxfield: {}", maxfield);
 
     let mut hm : BTreeMap<String, KeySum> = BTreeMap::new();
 
@@ -62,9 +69,10 @@ fn main() {
                         Ok(f) => f,
                         Err(e) => panic!("cannot open file \"{}\" due to this error: {}",p, e),
                     };
-            let mut rdr = BufReader::with_capacity(1024*1024*4,f);
+            let mut rdr = BufReader::with_capacity(1024*1024*1,f);
 
-            let (_bc,lines) = read_file(&mut rdr,&mut hm, d, & key_fields, unique_c_field);
+            let (_bc,lines) = read_file(&mut rdr, &mut hm, d, & key_fields, unique_c_field, maxfield);
+//            let (_bc,lines) = read_file_until(&mut rdr, &mut hm, d, & key_fields, unique_c_field);
 
             let elapsed = start_f.elapsed();
             let sec = (elapsed.as_secs() as f64) + (elapsed.subsec_nanos() as f64 / 1000_000_000.0);
@@ -78,7 +86,7 @@ fn main() {
         let stdin = std::io::stdin();
         let mut handle = stdin.lock();
         println!("reading stdin...");
-        let (bc,lines) = read_file(&mut handle, &mut hm, d, &key_fields, unique_c_field);
+        let (bc,lines) = read_file(&mut handle, &mut hm, d, &key_fields, unique_c_field,maxfield);
         let elapsed = start_f.elapsed();
         let sec = (elapsed.as_secs() as f64) + (elapsed.subsec_nanos() as f64 / 1000_000_000.0);
         let rate : f64= bc as f64 / sec;
@@ -90,13 +98,14 @@ fn main() {
     }
 }
 
-fn read_file(rdr: &mut BufRead, hm : &mut BTreeMap<String, KeySum>, delimiter: char, key_fields : & Vec<usize>, unique_c_field: usize) -> (usize,usize) {
+fn read_file(rdr: &mut BufRead, hm : &mut BTreeMap<String, KeySum>, delimiter: char, key_fields : & Vec<usize>, unique_c_field: i32, maxfield: usize) -> (usize,usize) {
     let mut lines = 0;
     let mut bytes = 0usize;
 
     let mut ss : String = String::with_capacity(256);
-    let mut it : [String;3] = Default::default();
+    let mut it : [String;32] = Default::default();
     let mut unique_count_field : String = String::with_capacity(256);
+
     for _line in rdr.lines() {
         lines += 1;
         let l = _line.unwrap();
@@ -107,26 +116,28 @@ fn read_file(rdr: &mut BufRead, hm : &mut BTreeMap<String, KeySum>, delimiter: c
         let mut pushed_count = 0;
 
         unique_count_field.clear();
-        for (i,field) in l.split(delimiter).enumerate() {
+        for (i,field) in l.split(delimiter).take(maxfield).enumerate() {
             for(j,index) in key_fields.iter().enumerate() {
                 if *index == i {
                     it[j].push_str(field);
                     pushed_count += 1;
                 }
 
-                if unique_c_field == i {
+                if unique_c_field as usize == i {
                     unique_count_field.push_str(field);
                 }
             }
         }
 
         ss.clear();
+
         for i in 0..pushed_count {
             if i != pushed_count -1 {
                 ss.push_str(&it[i]);
                 ss.push_str("|");
             } else { ss.push_str(&it[i]); }
         }
+
         {
             let v = hm.entry(ss.clone()).or_insert(KeySum{ count : 0, unique_values: BTreeSet::new() });
             v.count = v.count +1;
@@ -135,9 +146,79 @@ fn read_file(rdr: &mut BufRead, hm : &mut BTreeMap<String, KeySum>, delimiter: c
             }
 
         }
+        
+
     } // lines loop
     (bytes,lines)
 } // END read_file
+
+
+
+fn read_file_until(rdr: &mut BufRead, hm : &mut BTreeMap<String, KeySum>, delimiter: char, key_fields : & Vec<usize>, unique_c_field: usize) -> (usize,usize) {
+    let mut lines = 0;
+    let mut bytes = 0usize;
+
+    //let mut ss : String = String::with_capacity(256);
+    let mut it : [String;32] = Default::default();
+    let mut unique_count_field : String = String::with_capacity(256);
+
+
+    loop { 
+        let mut buf = Vec::new(); // &mut vec![];
+        let s = rdr.read_until(b'\n', &mut buf).unwrap();
+        if s > 0 {
+//            let line = unsafe { String::from_utf8_unchecked(buf) };
+            let line = String::from_utf8(buf).unwrap();
+            lines += 1;
+            bytes += line.len()+1;
+
+            for i in 0..(key_fields.len()) { it[i].clear(); }
+
+            let mut pushed_count = 0;
+
+            unique_count_field.clear();
+
+            for (i,field) in line.split(delimiter).enumerate() {
+                for(j,index) in key_fields.iter().enumerate() {
+                    if *index == i {
+                        it[j].push_str(field);
+                        pushed_count += 1;
+                    }
+
+                    if unique_c_field == i {
+                        unique_count_field.push_str(field);
+                    }
+                }
+            }
+
+            //ss.clear();
+            let mut ss = String::with_capacity(64);
+            for i in 0..pushed_count {
+                if i != pushed_count -1 {
+                    ss.push_str(&it[i]);
+                    ss.push_str("|");
+                } else { ss.push_str(&it[i]); }
+            }
+
+            {
+                let v = hm.entry(ss.clone()).or_insert(KeySum{ count : 0, unique_values: BTreeSet::new() });
+                v.count = v.count +1;
+                if unique_count_field.len() > 0 {
+                    v.unique_values.insert(unique_count_field.clone());
+                }
+
+            }
+
+
+
+
+        } else { break; }
+
+    }
+
+    (bytes,lines)
+} // END read_file
+
 
 
 
