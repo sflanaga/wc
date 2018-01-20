@@ -13,17 +13,22 @@ target-cpus='native'
 [[bin]]
 name = "text"
 path = "src/text.rs"
-crate-type = ["bin"] 
+crate-type = ["bin"]
 
 [[bin]]
 name = "wc"
 path = "src/main.rs"
-crate-type = ["bin"] 
+crate-type = ["bin"]
 
 [[bin]]
 name = "gb"
 path = "src/gb.rs"
-crate-type = ["bin"] 
+crate-type = ["bin"]
+
+[[bin]]
+name = "csv"
+path = "src/csv.rs"
+crate-type = ["bin"]
 
 [dependencies]
 bytecount = "0.2.0"
@@ -32,6 +37,4 @@ rand="0.3"
 heapsize = "0.4.1"
 libc = "0.2.34"
 fnv = "1.0.3"
-    
-
-
+csv = "1.0.0-beta.5"

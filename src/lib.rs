@@ -1,3 +1,7 @@
+
+
+
+
 #[cfg(test)]
 mod tests {
     #[test]
@@ -15,10 +19,10 @@ pub fn greek(v: f64) -> String {
 	const GG: f64 = MM*GROWTH;
 	const TT: f64 = GG*GROWTH;
 	const PP: f64 = TT*GROWTH;
-	
+
 	let a = v.abs();
 		// println!("hereZ {}  {}  {}", v, MM-(GR_BACKOFF*KK), GG-(GR_BACKOFF*MM));
-	let t = if a > 0.0 && a < KK - GR_BACKOFF { 
+	let t = if a > 0.0 && a < KK - GR_BACKOFF {
 		(v, "B")
 	} else if a >= KK - GR_BACKOFF && a < MM-(GR_BACKOFF*KK) {
 		// println!("here {}", v);
@@ -42,7 +46,7 @@ pub fn greek(v: f64) -> String {
 	if s.ends_with(".") {
 		s.pop();
 	}
-	
+
 
 	format!("{}{}", s, t.1)
 	// match v {

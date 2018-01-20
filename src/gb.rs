@@ -32,19 +32,19 @@ struct KeySum {
 
 
 fn main() {
+    for x in args() { println!("{:?}", x);}
     let d = args().nth(1).unwrap().chars().nth(0).unwrap();
     let key_fields = args().nth(2).unwrap();
     let unique_count = args().nth(3).unwrap();
-
     let unique_c_field = match unique_count.parse::<i32>() {
         Ok(x) => x,
         Err(e) => { println!("cannot parse option {} so skipping the unique key thing here, but the error was: {}", unique_count, e); -1 }
     };
 
-    let key_fields : Vec<usize> = key_fields.split(",").map(|x| x.parse::<usize>().unwrap()).collect();
+    let key_fields : Box<Vec<usize>> = Box::new(key_fields.split(",").map(|x| x.parse::<usize>().unwrap()).collect());
 
     let mut maxfield = if unique_c_field < 0 { 0 } else { unique_c_field as usize};
-    for x in key_fields.clone() {
+    for x in key_fields.iter() {
         if x+1 > maxfield { maxfield = x+1; }
     }
 
@@ -82,7 +82,7 @@ fn main() {
         } // per file loop
     } else { // read stdin
         let start_f = Instant::now();
-        
+
         let stdin = std::io::stdin();
         let mut handle = stdin.lock();
         println!("reading stdin...");
@@ -146,7 +146,7 @@ fn read_file(rdr: &mut BufRead, hm : &mut BTreeMap<String, KeySum>, delimiter: c
             }
 
         }
-        
+
 
     } // lines loop
     (bytes,lines)
@@ -163,7 +163,7 @@ fn read_file_until(rdr: &mut BufRead, hm : &mut BTreeMap<String, KeySum>, delimi
     let mut unique_count_field : String = String::with_capacity(256);
 
 
-    loop { 
+    loop {
         let mut buf = Vec::new(); // &mut vec![];
         let s = rdr.read_until(b'\n', &mut buf).unwrap();
         if s > 0 {
@@ -230,10 +230,10 @@ pub fn greek(v: f64) -> String {
 	const GG: f64 = MM*GROWTH;
 	const TT: f64 = GG*GROWTH;
 	const PP: f64 = TT*GROWTH;
-	
+
 	let a = v.abs();
 		// println!("hereZ {}  {}  {}", v, MM-(GR_BACKOFF*KK), GG-(GR_BACKOFF*MM));
-	let t = if a > 0.0 && a < KK - GR_BACKOFF { 
+	let t = if a > 0.0 && a < KK - GR_BACKOFF {
 		(v, "B")
 	} else if a >= KK - GR_BACKOFF && a < MM-(GR_BACKOFF*KK) {
 		// println!("here {}", v);
