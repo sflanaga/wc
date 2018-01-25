@@ -55,7 +55,7 @@ fn main() {
     if args().len() >= 5 {
 
         for p in args().skip(4) {
-            let metadata = fs::metadata(p.clone()).unwrap(); //ok().expect(format!("could not get meta data for file {}", forerror_msg.to_string())); // unwrap();
+            let metadata = fs::metadata(&p).unwrap(); //ok().expect(format!("could not get meta data for file {}", forerror_msg.to_string())); // unwrap();
             print!("processing file: {} of {} ... ", p, greek(metadata.len() as f64),);
             std::io::stdout().flush().ok().expect("Could not flush stdout");
             let start_f = Instant::now();
