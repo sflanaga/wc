@@ -4,7 +4,7 @@
 use std::io::prelude::*;
 use std::fs::OpenOptions;
 use std::fs;
-
+use std::process;
 use std::string::String;
 use std::env::args;
 use std::io::Read;
@@ -27,6 +27,8 @@ extern crate csv;
 
 
 
+
+
 #[derive(Debug)]
 struct KeySum {
 //    unique_values: BTreeSet<String>,
@@ -37,6 +39,22 @@ fn main() {
         println!("error: {:?}", &err);
         std::process::exit(1);
     }
+}
+
+fn help() {
+println!(r###"csv [options] file1... fileN
+csv [options] <reads from stdin>
+    --help this help
+    -h - data has header so skip first line
+    -n no output
+    -f x,y...z - command seperated field list - 0 index
+    -u unique_count - not working yet
+    --od output_delimiter  - single char
+    -d input_delimieter - single char
+    -v - verbose
+    --nc - not record count
+"###);
+process::exit(1);
 }
 
 fn csv() -> Result<(),std::io::Error> {
@@ -54,6 +72,9 @@ fn csv() -> Result<(),std::io::Error> {
     let mut i = 0;
     while i < argv.len() {
         match &argv[i][..] {
+            "--help" => { // field list processing
+                help();
+            },
             "-n" => { // field list processing
                 output = false;
             },
@@ -114,7 +135,7 @@ fn csv() -> Result<(),std::io::Error> {
     if filelist.len() <= 0 {
         let stdin = std::io::stdin();
         let mut handle = stdin.lock();
-        let (rowcount, fieldcount) = process(&mut handle, &mut hm, delimiter, & key_fields, & unique_fields, output_delimiter);
+        let (rowcount, fieldcount) = process(&mut handle, &mut hm, delimiter, & key_fields, & unique_fields, output_delimiter, hasheader);
         total_rowcount += rowcount;
         total_fieldcount += fieldcount;
     } else {
@@ -136,7 +157,7 @@ fn csv() -> Result<(),std::io::Error> {
                         Err(e) => panic!("cannot open file \"{}\" due to this error: {}",filename, e),
                     };
             let mut handle = BufReader::with_capacity(1024*1024*16,f);
-            let (rowcount, fieldcount) = process(&mut handle, &mut hm, delimiter, & key_fields, & unique_fields, output_delimiter);
+            let (rowcount, fieldcount) = process(&mut handle, &mut hm, delimiter, & key_fields, & unique_fields, output_delimiter, hasheader);
             total_rowcount += rowcount;
             total_fieldcount += fieldcount;
             total_bytes += metadata.len() as usize;
@@ -166,12 +187,12 @@ fn csv() -> Result<(),std::io::Error> {
 
 
 fn process( rdr: &mut BufRead, hm : &mut BTreeMap<String, KeySum>,
-    delimiter: char, key_fields : & Vec<usize>, _unique_fields: & Vec<usize>, output_delimiter: char) -> (usize,usize) {
+    delimiter: char, key_fields : & Vec<usize>, _unique_fields: & Vec<usize>, output_delimiter: char, header: bool) -> (usize,usize) {
 
     let mut ss : String = String::with_capacity(256);
 
     let mut recrdr = csv::ReaderBuilder::new()
-        .delimiter(delimiter as u8).has_headers(false).flexible(true)
+        .delimiter(delimiter as u8).has_headers(header).flexible(true)
         .from_reader(rdr);
     //println!("{:?}", &recrdr);
     let mut rowcount = 0usize;
