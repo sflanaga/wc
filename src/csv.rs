@@ -43,16 +43,20 @@ fn csv() -> Result<(),std::io::Error> {
 
     let mut key_fields = vec![];
     let mut unique_fields = vec![];
-    let mut ii = 1..args().len();
     let mut delimiter : char = ',';
-
+    let mut output_delimiter: char = ' ';
     let argv : Vec<String> = args().skip(1).map( |x| x).collect();
-    let mut filelist = &mut vec![];
+    let filelist = &mut vec![];
     let mut verbose = false;
     let mut hasheader = false;
+    let mut output = true;
+    let mut record_count = true;
     let mut i = 0;
     while i < argv.len() {
         match &argv[i][..] {
+            "-n" => { // field list processing
+                output = false;
+            },
             "-f" => { // field list processing
                 i += 1;
                 key_fields.splice(.., (&argv[i][..]).split(",").map( |x| x.parse::<usize>().unwrap()) );
@@ -60,6 +64,10 @@ fn csv() -> Result<(),std::io::Error> {
             "-u" => { // unique count AsMut
                 i += 1;
                 unique_fields.splice(.., (&argv[i][..]).split(",").map( |x| x.parse::<usize>().unwrap()) );
+            },
+            "--od" => { // unique count AsMut
+                i += 1;
+                output_delimiter = argv[i].as_bytes()[0] as char;
             },
             "-d" => { // unique count AsMut
                 i += 1;
@@ -72,7 +80,13 @@ fn csv() -> Result<(),std::io::Error> {
             "-h" => { // write out AsMut
                 hasheader = true;
             },
-            x => { println!("adding filename {} to scan", x); filelist.push(x); }
+            "--nc" => { // just write the keys and not the row count
+                record_count = false;
+            },
+            x => {
+                if verbose { println!("adding filename {} to scan", x); }
+                filelist.push(x);
+            }
         }
 
         i += 1;
@@ -82,7 +96,7 @@ fn csv() -> Result<(),std::io::Error> {
     if verbose {
         println!("\tdelimiter: {}", delimiter);
         println!("\theader: {}", hasheader);
-        println!("\tkey_fields: {:?}", key_fields);
+        println!("\tkey_fields: {:?}  len={}", key_fields, key_fields.len() );
         println!("\tunique_fields: {:?}", unique_fields);
         println!("\tfile list {:?}", filelist);
         if filelist.len() <= 0 {
@@ -91,7 +105,6 @@ fn csv() -> Result<(),std::io::Error> {
     }
 
     let mut hm : BTreeMap<String, KeySum> = BTreeMap::new();
-    let mut count = 0;
 
     let mut total_rowcount = 0usize;
     let mut total_fieldcount = 0usize;
@@ -101,7 +114,7 @@ fn csv() -> Result<(),std::io::Error> {
     if filelist.len() <= 0 {
         let stdin = std::io::stdin();
         let mut handle = stdin.lock();
-        let (rowcount, fieldcount) = process(&mut handle, &mut hm, delimiter, & key_fields, & unique_fields);
+        let (rowcount, fieldcount) = process(&mut handle, &mut hm, delimiter, & key_fields, & unique_fields, output_delimiter);
         total_rowcount += rowcount;
         total_fieldcount += fieldcount;
     } else {
@@ -112,7 +125,7 @@ fn csv() -> Result<(),std::io::Error> {
             //     Err(err) => return Err(std::error::Error::new(err.kind(), format!("could not get stats on file {}, cause: {}", &filename, err.description()) )),
             // );
 
-            println!("file: {}", filename);
+            if verbose { println!("file: {}", filename); }
             let f = match OpenOptions::new()
                     .read(true)
                     .write(false)
@@ -123,28 +136,37 @@ fn csv() -> Result<(),std::io::Error> {
                         Err(e) => panic!("cannot open file \"{}\" due to this error: {}",filename, e),
                     };
             let mut handle = BufReader::with_capacity(1024*1024*16,f);
-            let (rowcount, fieldcount) = process(&mut handle, &mut hm, delimiter, & key_fields, & unique_fields);
+            let (rowcount, fieldcount) = process(&mut handle, &mut hm, delimiter, & key_fields, & unique_fields, output_delimiter);
             total_rowcount += rowcount;
             total_fieldcount += fieldcount;
             total_bytes += metadata.len() as usize;
         }
     }
-
-    for (ff,cc) in &hm {
-        println!("{} {}", ff,cc.count);
+    if output {
+        if record_count {
+            for (ff,cc) in &hm {
+                println!("{}{}{}", ff,output_delimiter,cc.count);
+            }
+        } else {
+            for (ff,_cc) in &hm {
+                println!("{}", ff);
+            }
+        }
     }
     if ( verbose ) {
         let elapsed = start_f.elapsed();
         let sec = (elapsed.as_secs() as f64) + (elapsed.subsec_nanos() as f64 / 1000_000_000.0);
         let rate : f64= (total_bytes as f64 / (1024f64*1024f64)) as f64 / sec;
-        println!("rows: {}  fields: {}  rate: {:.2}MB/s", total_rowcount, total_fieldcount, rate);
+        if verbose {
+            println!("rows: {}  fields: {}  rate: {:.2}MB/s", total_rowcount, total_fieldcount, rate);
+        }
     }
     Ok( () )
 }
 
 
 fn process( rdr: &mut BufRead, hm : &mut BTreeMap<String, KeySum>,
-    delimiter: char, key_fields : & Vec<usize>, unique_fields: & Vec<usize>) -> (usize,usize) {
+    delimiter: char, key_fields : & Vec<usize>, _unique_fields: & Vec<usize>, output_delimiter: char) -> (usize,usize) {
 
     let mut ss : String = String::with_capacity(256);
 
@@ -156,24 +178,42 @@ fn process( rdr: &mut BufRead, hm : &mut BTreeMap<String, KeySum>,
     let mut fieldcount = 0usize;
     for result in recrdr.records() {
         //println!("here");
+        //
+
         let record : csv::StringRecord = result.unwrap();
         //println!("{} {}", &record[0], &record[1]);
         ss.clear();
 
-        for kfi in key_fields {
-            if *kfi != key_fields.len() {
-                ss.push_str(&record[*kfi]);
-                ss.push(delimiter);
+        let mut i = 0;
+        while i < key_fields.len() {
+            let index = key_fields[i];
+            if index < record.len() {
+                ss.push_str(&record[index]);
             } else {
-                ss.push_str(&record[*kfi])
+                ss.push_str("NULL");
             }
+            if i != key_fields.len()-1 {
+                ss.push(output_delimiter);
+            }
+            i += 1;
         }
 
-        rowcount += 1;
-        fieldcount += record.len();
-        {
-            let v = hm.entry(ss.clone()).or_insert(KeySum{ count : 0  /*, unique_values: BTreeSet::new()*/ });
-            v.count = v.count +1;
+        // for kfi in key_fields {
+        //     if *kfi != key_fields.len() {
+        //         ss.push_str(&record[*kfi]);
+        //         ss.push(delimiter);
+        //     } else {
+        //         ss.push_str(&record[*kfi])
+        //     }
+        // }
+
+        if ss.len() > 0 {
+            rowcount += 1;
+            fieldcount += record.len();
+            {
+                let v = hm.entry(ss.clone()).or_insert(KeySum{ count : 0  /*, unique_values: BTreeSet::new()*/ });
+                v.count = v.count +1;
+            }
         }
 
     }

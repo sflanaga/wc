@@ -7,7 +7,7 @@ authors = ["steve"]
 lto=true
 opt-level = 3
 panic = 'abort'
-debug = true
+debug = false
 debug-assertions = false
 target-cpus='native'
 
