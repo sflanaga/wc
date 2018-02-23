@@ -13,44 +13,8 @@ use std::os::linux::fs::MetadataExt;
 use users::{get_user_by_uid, get_current_uid};
 
 
-pub fn greek(v: f64) -> String {
-	const GR_BACKOFF: f64 = 24.0;
-	const GROWTH: f64 = 1024.0;
-	const KK : f64 = GROWTH;
-	const MM : f64 = KK*GROWTH;
-	const GG: f64 = MM*GROWTH;
-	const TT: f64 = GG*GROWTH;
-	const PP: f64 = TT*GROWTH;
-
-	let a = v.abs();
-		// println!("hereZ {}  {}  {}", v, MM-(GR_BACKOFF*KK), GG-(GR_BACKOFF*MM));
-	let t = if a > 0.0 && a < KK - GR_BACKOFF {
-		(v, "B")
-	} else if a >= KK - GR_BACKOFF && a < MM-(GR_BACKOFF*KK) {
-		// println!("here {}", v);
-		(v/KK, "K")
-	} else if a >= MM-(GR_BACKOFF*KK) && a < GG-(GR_BACKOFF*MM) {
-		// println!("here2 {}  {}  {}", v, MM-(GR_BACKOFF*KK), GG-(GR_BACKOFF*MM));
-		(v/MM, "M")
-	} else if a >= GG-(GR_BACKOFF*MM) && a < TT-(GR_BACKOFF*GG) {
-		// println!("here3 {}", v);
-		(v/GG, "G")
-	} else if a >= TT-(GR_BACKOFF*GG) && a < PP-(GR_BACKOFF*TT) {
-		// println!("here4 {}", v);
-		(v/TT, "T")
-	} else {
-		// println!("here5 {}", v);
-		(v/PP, "P")
-	};
-
-	let mut s = format!("{}", t.0);
-	s.truncate(4);
-	if s.ends_with(".") {
-		s.pop();
-	}
-
-	format!("{}{}", s, t.1)
-}
+mod util;
+use util::{greek};
 
 fn track_top_n(map: &mut BTreeMap<u64, String>, path: &Path, size: u64, limit: usize) -> bool {
     if size <= 0 {
@@ -77,16 +41,24 @@ fn track_top_n(map: &mut BTreeMap<u64, String>, path: &Path, size: u64, limit: u
     return false
 }
 
-fn walk_dir(dir: &Path, depth: u32, user_map: &mut BTreeMap<u32, u64>, mut top_dir: &mut BTreeMap<u64,String>) -> u64 {
+fn walk_dir(limit: usize, dir: &Path, depth: u32,
+    user_map: &mut BTreeMap<u32, u64>,
+    mut top_dir: &mut BTreeMap<u64,String>,
+    mut top_cnt_dir: &mut BTreeMap<u64,String>,
+    mut top_cnt_file: &mut BTreeMap<u64,String>,
+    mut top_dir_overall: &mut BTreeMap<u64,String>,
+    mut top_files: &mut BTreeMap<u64,String>) -> (u64,u64) {
     let itr = fs::read_dir(dir);
     let mut this_tot = 0;
+    let mut this_cnt = 0;
     match itr {
         Ok(e) => {
             let mut local_tot = 0u64;
+            let mut local_cnt_file = 0u64;
+            let mut local_cnt_dir = 0u64;
             for e in e {
                 let e = e.unwrap();
                 let meta = e.metadata().unwrap();
-                let stat = meta.as_raw_stat();
                 let p = e.path();
                 if meta.is_file() {
                     let s = meta.len();
@@ -94,30 +66,48 @@ fn walk_dir(dir: &Path, depth: u32, user_map: &mut BTreeMap<u32, u64>, mut top_d
                     local_tot += s;
                     let uid = meta.st_uid();
                     *user_map.entry(uid).or_insert(0) += s;
+                    local_cnt_file += 1;
+                    this_cnt +=1;
+                    track_top_n(&mut top_files, &p, s, limit); // track single immediate space
+                    // println!("{}", p.to_str().unwrap());
                 } else if meta.is_dir() {
-                    this_tot += walk_dir(&p, depth+1, user_map, top_dir);
+                    local_cnt_dir += 1;
+                    let (that_tot, that_cnt) = walk_dir(limit, &p, depth+1, user_map, top_dir, top_cnt_dir, top_cnt_file, top_dir_overall, top_files);
+                    this_tot += that_tot;
+                    this_cnt += that_cnt;
                 }
-
             }
-            track_top_n(&mut top_dir, &dir, local_tot, 10);
+            track_top_n(&mut top_dir, &dir, local_tot, limit); // track single immediate space
+            track_top_n(&mut top_cnt_dir, &dir, local_cnt_dir, limit); // track dir with most # of dir right under it
+            track_top_n(&mut top_cnt_file, &dir, local_cnt_file, limit); // track dir with most # of file right under it
+            track_top_n(&mut top_dir_overall, &dir, this_tot, limit); // track top dirs overall - main will be largest
         },
         Err(e) =>
-            println!("Cannot read dir: {}, error: {} so skipping ", &dir.to_str().unwrap(), &e),
+            eprintln!("Cannot read dir: {}, error: {} so skipping ", &dir.to_str().unwrap(), &e),
     }
-    this_tot
+    return (this_tot, this_cnt);
 }
 
+
 fn main() {
-    let spath = args().nth(1).expect("missing 1st arg for top path to scan").to_string();
+
+    let limit = args().nth(1).expect("missing 1st arg which is the number of top X to track").to_string().parse::<usize>().unwrap();
+    let spath = args().nth(2).expect("missing 2nd arg for top directory to scan").to_string();
     let path = Path::new(& spath);
     if path.is_dir() {
         let mut user_map: BTreeMap<u32, u64> = BTreeMap::new();
+
         let mut top_dir: BTreeMap<u64, String> = BTreeMap::new();
+        let mut top_cnt_dir: BTreeMap<u64, String> = BTreeMap::new();
+        let mut top_cnt_file: BTreeMap<u64, String> = BTreeMap::new();
+        let mut top_dir_overall: BTreeMap<u64, String> = BTreeMap::new();
+        let mut top_files: BTreeMap<u64, String> = BTreeMap::new();
 
-        let total = walk_dir(&path, 0, &mut user_map, &mut top_dir);
-        println!("Total scanned: {}", greek(total as f64));
+        let (total,count) = walk_dir(limit, &path, 0, &mut user_map, &mut top_dir,  &mut top_cnt_dir,  &mut top_cnt_file,  &mut top_dir_overall, &mut top_files);
 
-        println!("\nSpace per user");
+        println!("Total scanned: {} and {} files", greek(total as f64), count);
+
+        println!("\nSpace used per user");
         for (k, v) in &user_map {
             match get_user_by_uid(*k) {
                 None => println!("uid{:7} {} ", *k, greek(*v as f64)),
@@ -129,7 +119,25 @@ fn main() {
         for (k, v) in top_dir.iter().rev() {
             println!("{:10} {}", greek(*k as f64),v);
         }
+        println!("\nTop dir ");
+        for (k, v) in top_dir_overall.iter().rev() {
+            println!("{:10} {}", greek(*k as f64),v);
+        }
 
+        println!("\nTop dir count with files directly inside it");
+        for (k, v) in top_cnt_file.iter().rev() {
+            println!("{:10} {}", *k,v);
+        }
+
+        println!("\nTop dir count with directories directly inside it");
+        for (k, v) in top_cnt_dir.iter().rev() {
+            println!("{:10} {}", *k,v);
+        }
+
+        println!("\nTop sized files");
+        for (k, v) in top_files.iter().rev() {
+            println!("{:10} {}", greek(*k as f64),v);
+        }
     } else {
         println!("path {} is not a directory", spath);
     }

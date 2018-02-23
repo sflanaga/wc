@@ -25,9 +25,9 @@ use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 extern crate csv;
 
+mod gen;
 
-
-
+use gen::greek;
 
 #[derive(Debug)]
 struct KeySum {
@@ -35,6 +35,8 @@ struct KeySum {
     count : u64
 }
 fn main() {
+
+    println!("{}", greek(25.0));
     if let Err(err) = csv() {
         println!("error: {:?}", &err);
         std::process::exit(1);

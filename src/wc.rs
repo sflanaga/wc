@@ -13,7 +13,7 @@ use std::io::Read;
 use std::io::BufReader;
 use std::io::BufRead;
 
-pub fn mainfile<'a, I>(filenames: I, _slow: bool) 
+pub fn mainfile<'a, I>(filenames: I, _slow: bool)
 where
     I: Iterator<Item = &'a str>,
 {
@@ -69,7 +69,7 @@ where
                 };
             }
         } else {
-            // Option<Result<String, Error>> 
+            // Option<Result<String, Error>>
             /*
             let mut rdr = BufReader::with_capacity(1024*1024*1, f);
             loop {
@@ -88,7 +88,7 @@ where
             }
             */
 
-            /*            
+            /*
             loop {
                 let mut myvec = vec![];
                 match f.read_until(b'\n', &mut myvec) {
@@ -96,8 +96,8 @@ where
                         //println!("{:?}", myvec);
                         if s == 0 { break; }
                         let string = unsafe { String::from_utf8_unchecked(myvec) };
-                        lines +=1; 
-                        bc += string.len(); 
+                        lines +=1;
+                        bc += string.len();
                         //alllines.push(string);
                     },
                     _ => break,
@@ -123,7 +123,7 @@ where
                 bc += _line.unwrap().len();
             }
             */
-            
+
         } // 💯
         println!("{} had {} lines and {} bytes", path.to_str().unwrap(), lines, bc);
     }
@@ -132,7 +132,7 @@ where
 pub fn mainstdin(slow: bool) {
     let mut buffer = [0u8; 1024 * 128];
     //let mut stdin = ::std::io::stdin();
-    
+
     let mut wc = 0usize;
     let mut bc = 0usize;
 
@@ -165,7 +165,7 @@ pub fn mainstdin(slow: bool) {
     println!("lines: {}  bytes: {} ", wc, bc);
 }
 pub fn fast_read_line(rdr : &mut BufRead,  mut buf: &mut Vec<u8>) -> Option<Result<String, Error>> {
-    
+
     let result = { rdr.read_until(b'\n', &mut buf) };
     let newbuf = buf.clone();
     match result {
@@ -195,3 +195,4 @@ pub fn fast_read_line__(rdr : &mut BufRead) -> Option<Result<String, Error>> {
     }
 }
 
+fn main() {}

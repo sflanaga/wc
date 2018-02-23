@@ -6,7 +6,7 @@ authors = ["steve"]
 [profile.release]
 lto=true
 opt-level = 3
-panic = 'abort'
+#panic = 'abort'
 debug = false
 debug-assertions = false
 target-cpus='native'
@@ -31,6 +31,21 @@ name = "csv"
 path = "src/csv.rs"
 crate-type = ["bin"]
 
+[[bin]]
+name = "respeed"
+path = "src/respeed.rs"
+crate-type = ["bin"]
+
+[[bin]]
+name = "walktar"
+path = "src/walktar.rs"
+crate-type = ["bin"]
+
+[[bin]]
+name = "du2"
+path = "src/du.rs"
+crate-type = ["bin"]
+
 [dependencies]
 bytecount = "0.2.0"
 clap = "2.29.0"
@@ -39,3 +54,10 @@ heapsize = "0.4.1"
 libc = "0.2.34"
 fnv = "1.0.3"
 csv = "1.0.0-beta.5"
+regex = "0.2.5"
+
+futures = "0.1.18"
+
+flate2 = "0.2"
+tar = "0.4.14"
+users = "0.5.0"
