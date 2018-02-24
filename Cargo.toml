@@ -46,7 +46,18 @@ name = "du2"
 path = "src/du.rs"
 crate-type = ["bin"]
 
+[[bin]]
+name = "et"
+path = "src/et.rs"
+crate-type = ["bin"]
+
+[[bin]]
+name = "et2"
+path = "src/et2.rs"
+crate-type = ["bin"]
+
 [dependencies]
+failure = "0.1.1"
 bytecount = "0.2.0"
 clap = "2.29.0"
 rand="0.3"
