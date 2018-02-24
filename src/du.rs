@@ -8,6 +8,7 @@ use std::env::args;
 //use std::io;
 use std::io::prelude::*;
 use std::path::Path;
+use std::path::PathBuf;
 use std::collections::BTreeMap;
 use std::os::linux::fs::MetadataExt;
 use users::{get_user_by_uid, get_current_uid};
@@ -21,16 +22,16 @@ mod util;
 use util::{greek};
 
 
-fn track_top_n(map: &mut BTreeMap<u64, String>, path: &Path, size: u64, limit: usize) -> GenResult<bool> {
+fn track_top_n(map: &mut BTreeMap<u64, PathBuf>, path: &Path, size: u64, limit: usize) -> bool {
     if size <= 0 {
-        return Ok(false);
+        return false;
     }
 
     if limit > 0 {
         if map.len() < limit {
-            let spath = String::from(path.to_str().unwrap());
+            let spath = path.to_path_buf();
             map.insert(size, spath);
-            return Ok(true)
+            return true
         } else {
             let lowest = match map.iter().next() {
                 Some( (l,p) ) => *l,
@@ -38,21 +39,21 @@ fn track_top_n(map: &mut BTreeMap<u64, String>, path: &Path, size: u64, limit: u
             };
             if lowest < size {
                 map.remove(&lowest);
-                let spath = String::from(path.to_str().unwrap());
+                let spath = path.to_path_buf();
                 map.insert(size, spath);
             }
         }
     }
-    return Ok(false);
+    return false;
 }
 
 fn walk_dir(limit: usize, dir: &Path, depth: u32,
     user_map: &mut BTreeMap<u32, u64>,
-    mut top_dir: &mut BTreeMap<u64,String>,
-    mut top_cnt_dir: &mut BTreeMap<u64,String>,
-    mut top_cnt_file: &mut BTreeMap<u64,String>,
-    mut top_dir_overall: &mut BTreeMap<u64,String>,
-    mut top_files: &mut BTreeMap<u64,String>) -> GenResult<(u64,u64)> {
+    mut top_dir: &mut BTreeMap<u64,PathBuf>,
+    mut top_cnt_dir: &mut BTreeMap<u64,PathBuf>,
+    mut top_cnt_file: &mut BTreeMap<u64,PathBuf>,
+    mut top_dir_overall: &mut BTreeMap<u64,PathBuf>,
+    mut top_files: &mut BTreeMap<u64,PathBuf>) -> GenResult<(u64,u64)> {
     let itr = fs::read_dir(dir);
     let mut this_tot = 0;
     let mut this_cnt = 0;
@@ -77,15 +78,17 @@ fn walk_dir(limit: usize, dir: &Path, depth: u32,
                     // println!("{}", p.to_str().unwrap());
                 } else if meta.is_dir() {
                     local_cnt_dir += 1;
-                    let (that_tot, that_cnt) = walk_dir(limit, &p, depth+1, user_map, top_dir, top_cnt_dir, top_cnt_file, top_dir_overall, top_files)?;
-                    this_tot += that_tot;
-                    this_cnt += that_cnt;
+                    //let (that_tot, that_cnt) = walk_dir(limit, &p, depth+1, user_map, top_dir, top_cnt_dir, top_cnt_file, top_dir_overall, top_files)?;
+                    match walk_dir(limit, &p, depth+1, user_map, top_dir, top_cnt_dir, top_cnt_file, top_dir_overall, top_files) {
+                        Ok( (that_tot, that_cnt) ) => { this_tot += that_tot; this_cnt += that_cnt; },
+                        Err(e) => eprint!("error trying walk {}, error = {} but continuing",p.to_string_lossy(), e),
+                    };
                 }
             }
-            track_top_n(&mut top_dir, &dir, local_tot, limit)?; // track single immediate space
-            track_top_n(&mut top_cnt_dir, &dir, local_cnt_dir, limit)?; // track dir with most # of dir right under it
-            track_top_n(&mut top_cnt_file, &dir, local_cnt_file, limit)?; // track dir with most # of file right under it
-            track_top_n(&mut top_dir_overall, &dir, this_tot, limit)?; // track top dirs overall - main will be largest
+            track_top_n(&mut top_dir, &dir, local_tot, limit); // track single immediate space
+            track_top_n(&mut top_cnt_dir, &dir, local_cnt_dir, limit); // track dir with most # of dir right under it
+            track_top_n(&mut top_cnt_file, &dir, local_cnt_file, limit); // track dir with most # of file right under it
+            track_top_n(&mut top_dir_overall, &dir, this_tot, limit); // track top dirs overall - main will be largest
         },
         Err(e) =>
             eprintln!("Cannot read dir: {}, error: {} so skipping ", &dir.to_str().unwrap(), &e),
@@ -100,13 +103,21 @@ fn run() -> GenResult<()> {
     if path.is_dir() {
         let mut user_map: BTreeMap<u32, u64> = BTreeMap::new();
 
-        let mut top_dir: BTreeMap<u64, String> = BTreeMap::new();
-        let mut top_cnt_dir: BTreeMap<u64, String> = BTreeMap::new();
-        let mut top_cnt_file: BTreeMap<u64, String> = BTreeMap::new();
-        let mut top_dir_overall: BTreeMap<u64, String> = BTreeMap::new();
-        let mut top_files: BTreeMap<u64, String> = BTreeMap::new();
+        let mut top_dir: BTreeMap<u64, PathBuf> = BTreeMap::new();
+        let mut top_cnt_dir: BTreeMap<u64, PathBuf> = BTreeMap::new();
+        let mut top_cnt_file: BTreeMap<u64, PathBuf> = BTreeMap::new();
+        let mut top_dir_overall: BTreeMap<u64, PathBuf> = BTreeMap::new();
+        let mut top_files: BTreeMap<u64, PathBuf> = BTreeMap::new();
 
-        let (total,count) = walk_dir(limit, &path, 0, &mut user_map, &mut top_dir,  &mut top_cnt_dir,  &mut top_cnt_file,  &mut top_dir_overall, &mut top_files)?;
+        let (total, count) = match walk_dir(limit, &path, 0, &mut user_map, &mut top_dir,  &mut top_cnt_dir,  &mut top_cnt_file,  &mut top_dir_overall, &mut top_files) {
+            Ok( (that_tot, that_cnt) ) => { (that_tot, that_cnt) },
+            Err(e) => {
+                eprint!("error trying walk top dir {}, error = {} but continuing",path.to_string_lossy(), e);
+                (0,0)
+            }
+
+        };
+        //let (total,count) = walk_dir(limit, &path, 0, &mut user_map, &mut top_dir,  &mut top_cnt_dir,  &mut top_cnt_file,  &mut top_dir_overall, &mut top_files)?;
 
         println!("Total scanned: {} and {} files", greek(total as f64), count);
 
@@ -120,26 +131,26 @@ fn run() -> GenResult<()> {
         }
         println!("\nTop dir with space usage directly inside them");
         for (k, v) in top_dir.iter().rev() {
-            println!("{:10} {}", greek(*k as f64),v);
+            println!("{:10} {}", greek(*k as f64),v.to_string_lossy());
         }
         println!("\nTop dir ");
         for (k, v) in top_dir_overall.iter().rev() {
-            println!("{:10} {}", greek(*k as f64),v);
+            println!("{:10} {}", greek(*k as f64),v.to_string_lossy());
         }
 
         println!("\nTop dir count with files directly inside it");
         for (k, v) in top_cnt_file.iter().rev() {
-            println!("{:10} {}", *k,v);
+            println!("{:10} {}", *k,v.to_string_lossy());
         }
 
         println!("\nTop dir count with directories directly inside it");
         for (k, v) in top_cnt_dir.iter().rev() {
-            println!("{:10} {}", *k,v);
+            println!("{:10} {}", *k,v.to_string_lossy());
         }
 
         println!("\nTop sized files");
         for (k, v) in top_files.iter().rev() {
-            println!("{:10} {}", greek(*k as f64),v);
+            println!("{:10} {}", greek(*k as f64),v.to_string_lossy());
         }
     } else {
         println!("path {} is not a directory", spath);
