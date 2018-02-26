@@ -14,6 +14,7 @@ use std::collections::BTreeMap;
 use std::collections::BinaryHeap;
 use std::os::linux::fs::MetadataExt;
 use users::{get_user_by_uid, get_current_uid};
+use std::time::Instant;
 
 type GenError = Box<std::error::Error>;
 type GenResult<T> = Result<T, GenError>;
@@ -144,10 +145,13 @@ fn walk_dir(limit: usize, dir: &Path, depth: u32,
 }
 
 fn run() -> GenResult<()> {
+
     let limit = args().nth(1).expect("missing 1st arg which is the number of top X to track").to_string().parse::<usize>().unwrap();
     let spath = args().nth(2).expect("missing 2nd arg for top directory to scan").to_string();
     let path = Path::new(& spath);
     if path.is_dir() {
+        let start_f = Instant::now();
+
         let mut user_map: BTreeMap<u32, u64> = BTreeMap::new();
 
         let mut top_dir: BinaryHeap<TrackedPath> = BinaryHeap::new();
@@ -166,7 +170,10 @@ fn run() -> GenResult<()> {
         };
         //let (total,count) = walk_dir(limit, &path, 0, &mut user_map, &mut top_dir,  &mut top_cnt_dir,  &mut top_cnt_file,  &mut top_dir_overall, &mut top_files)?;
 
-        println!("Total scanned: {} and {} files", greek(total as f64), count);
+        let elapsed = start_f.elapsed();
+        let sec = (elapsed.as_secs() as f64) + (elapsed.subsec_nanos() as f64 / 1000_000_000.0);
+
+        println!("File space scanned: {} and {} files in {} seconds", greek(total as f64), count, sec);
 
         println!("\nSpace used per user");
         for (k, v) in &user_map {
