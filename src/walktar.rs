@@ -51,7 +51,6 @@ fn walk_tar<R>(af: &mut Archive<R>, delimiter: char, header: bool, writers: &mut
                                     Ok(f) => f,
                                     Err(e) => panic!("cannot open file \"{}\" due to this error: {}",&filename, e),
                                 };
-                        println!("opening file {}", &filename);
                         BufWriter::with_capacity(1024*1024,f)
 
                     });
