@@ -172,6 +172,11 @@ fn run() -> GenResult<()> {
         }
         i += 1;
     }
+    if filelist.len() <= 0 {
+        println!("Using ./ as top directory");
+        filelist.push("./");
+    }
+
 
     let start_f = Instant::now();
 
@@ -210,14 +215,8 @@ fn run() -> GenResult<()> {
         }
 
     }
+    
     println!("\nTop dir with space usage directly inside them");
-
-    // loop {
-    //     match top_dir.pop() {
-    //         None => break,
-    //         Some(v) => println!("{:10} {}", greek(v.size as f64),v.path.to_string_lossy()),
-    //     }
-    // }
     for v in top_dir.into_sorted_vec() {
         println!("{:10} {}", greek(v.size as f64),v.path.to_string_lossy());
     }
