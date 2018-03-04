@@ -56,7 +56,13 @@ name = "et2"
 path = "src/et2.rs"
 crate-type = ["bin"]
 
+[[bin]]
+name = "xmltst"
+path = "src/xmltst.rs"
+crate-type = ["bin"]
+
 [dependencies]
+quick-xml = "0.12.0"
 failure = "0.1.1"
 bytecount = "0.2.0"
 clap = "2.29.0"
@@ -72,3 +78,4 @@ futures = "0.1.18"
 flate2 = "0.2"
 tar = "0.4.14"
 users = "0.5.0"
+prettytable-rs = "^0.6"
