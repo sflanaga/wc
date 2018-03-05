@@ -193,53 +193,59 @@ fn csv() -> Result<(),std::io::Error> {
         }
     }
 
-    // if auto_align {
-
-        let mut table = Table::new();
-        table.set_format(*format::consts::FORMAT_NO_BORDER_LINE_SEPARATOR);
-        for (ff,cc) in &hm {
-            let mut vcell = vec![];
-            let z1: Vec<&str> = ff.split('|').collect();
-            for x in &z1 {
-                vcell.  push(Cell::new(x));
-            }
-            // z1.iter().map( |x| { println!("{}", x); vcell.push(Cell::new(x));} );
-            // //vcell.push(Cell::new(&ff));
-            if write_record_count {
-                vcell.push(Cell::new(&format!("{}",cc.count)));
-            }
-            for x in &cc.sums {
-                vcell.push(Cell::new(&format!("{}",x)));
-            }
-            for x in &cc.distinct {
-                vcell.push(Cell::new(&format!("{}",x.len())));
-            }
-            let mut row = Row::new(vcell);
-            table.add_row(row);
+    let mut table = Table::new();
+    // let format = format::FormatBuilder::new()
+    //     .column_separator('|')
+    //     .borders('|')
+    //     .separators(&[format::LinePosition::Top,
+    //                   format::LinePosition::Bottom],
+    //                 format::LineSeparator::new('-', '+', '+', '+'))
+    //     .padding(0, 0)
+    //     .build();
+    // table.set_format(format);
+    // table.set_format(*format::consts::FORMAT_NO_LINESEP_WITH_TITLE);
+    table.set_format(*format::consts::FORMAT_NO_BORDER_LINE_SEPARATOR);
+    {
+        let mut vcell = vec![];
+        for x in key_fields {
+            vcell.push(Cell::new(&format!("k:{}",&x)));
         }
-        if auto_align {
-            table.printstd();
-        } else {
-            println!("{}", table.to_csv(Vec::new()).unwrap().into_string());
+        if write_record_count { vcell.push(Cell::new("count")); }
+        for x in sum_fields {
+            vcell.push(Cell::new(&format!("s:{}",&x)));
         }
+        for x in unique_fields {
+            vcell.push(Cell::new(&format!("u:{}",&x)));
+        }
+        let mut row = Row::new(vcell);
+        table.set_titles(row);
+    }
 
-    // } else {
-    //     let mut tmp_s = String::new();
-    //     for (ff,cc) in &hm {
-    //         tmp_s.truncate(0);
-    //         tmp_s.push_str(&format!("{}",&ff));
-    //         if write_record_count {
-    //             tmp_s.push_str(&format!("{}{}",output_delimiter, cc.count));
-    //         }
-    //         for x in &cc.sums {
-    //             tmp_s.push_str(&format!("{}{}", output_delimiter, x));
-    //         }
-    //         for x in &cc.distinct {
-    //             tmp_s.push_str(&format!("{}{}", output_delimiter, x.len()));
-    //         }
-    //         println!("{}", tmp_s);
-    //     }
-    // }
+    for (ff,cc) in &hm {
+        let mut vcell = vec![];
+        let z1: Vec<&str> = ff.split('|').collect();
+        for x in &z1 {
+            vcell.push(Cell::new(x));
+        }
+        // z1.iter().map( |x| { println!("{}", x); vcell.push(Cell::new(x));} );
+        // //vcell.push(Cell::new(&ff));
+        if write_record_count {
+            vcell.push(Cell::new(&format!("{}",cc.count)));
+        }
+        for x in &cc.sums {
+            vcell.push(Cell::new(&format!("{}",x)));
+        }
+        for x in &cc.distinct {
+            vcell.push(Cell::new(&format!("{}",x.len())));
+        }
+        let mut row = Row::new(vcell);
+        table.add_row(row);
+    }
+    if auto_align {
+        table.printstd();
+    } else {
+        println!("{}", table.to_csv(Vec::new()).unwrap().into_string());
+    }
 
     if ( verbose ) {
         let elapsed = start_f.elapsed();
