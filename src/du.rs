@@ -147,7 +147,7 @@ fn walk_dir(verbose: bool, limit: usize, dir: &Path, depth: u32,
 fn run() -> GenResult<()> {
 
     let argv : Vec<String> = args().skip(1).map( |x| x).collect();
-    if argv.len() == 1 { help(); }
+    //if argv.len() == 1 { help(); }
 
     let filelist = &mut vec![];
     let mut verbose = false;
@@ -197,8 +197,6 @@ fn run() -> GenResult<()> {
             Err(e) =>
                 eprint!("error trying walk top dir {}, error = {} but continuing",path.to_string_lossy(), e),
             }
-
-
     }
     //let (total,count) = walk_dir(limit, &path, 0, &mut user_map, &mut top_dir,  &mut top_cnt_dir,  &mut top_cnt_file,  &mut top_dir_overall, &mut top_files)?;
 
@@ -207,15 +205,23 @@ fn run() -> GenResult<()> {
 
     println!("File space scanned: {} and {} files in {} seconds", greek(total as f64), count, sec);
 
+    #[derive(Debug)]
+    struct u2u {
+        size: u64,
+        uid: u32
+    };
+    let mut user_vec: Vec<u2u> = user_map.iter().map( |(&x,&y)| u2u {size: y, uid:x } ).collect();
+    user_vec.sort_by( |b,a| a.size.cmp(&b.size).then(b.uid.cmp(&b.uid)) );
+
     println!("\nSpace used per user");
-    for (k, v) in &user_map {
-        match get_user_by_uid(*k) {
-            None => println!("uid{:7} {} ", *k, greek(*v as f64)),
-            Some(user) => println!("{:10} {} ", user.name(), greek(*v as f64)),
+    for ue in &user_vec {
+        match get_user_by_uid(ue.uid) {
+            None => println!("uid{:7} {} ", ue.uid, greek(ue.size as f64)),
+            Some(user) => println!("{:10} {} ", user.name(), greek(ue.size as f64)),
         }
 
     }
-    
+
     println!("\nTop dir with space usage directly inside them");
     for v in top_dir.into_sorted_vec() {
         println!("{:10} {}", greek(v.size as f64),v.path.to_string_lossy());
