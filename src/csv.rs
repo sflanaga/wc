@@ -2,6 +2,7 @@
 extern crate csv;
 extern crate prettytable;
 extern crate regex;
+//extern crate built;
 
 use std::io::prelude::*;
 use std::fs::OpenOptions;
@@ -33,6 +34,7 @@ use prettytable::row::Row;
 use prettytable::cell::Cell;
 use prettytable::format;
 
+
 use regex::Regex;
 
 mod gen;
@@ -48,6 +50,7 @@ struct KeySum {
     distinct: Vec<HashSet<String>>
 }
 fn main() {
+    // built::write_built_file().expect("Failed to acquire build-time information");
     if let Err(err) = csv() {
         println!("error: {:?}", &err);
         std::process::exit(1);
@@ -75,6 +78,10 @@ csv [options] -i # read from standard input
     println!("CARGO_MANIFEST_DIR: {}", env!("CARGO_MANIFEST_DIR"));
     println!("CARGO_PKG_VERSION: {}", env!("CARGO_PKG_VERSION"));
     println!("CARGO_PKG_HOMEPAGE: {}", env!("CARGO_PKG_HOMEPAGE"));
+    // if built_info::GIT_VERSION.is_some() {
+    //     println!("git rev: {}  build time: {}", built_info::GIT_VERSION.unwrap(),built_info::BUILT_TIME_UTC);
+    //
+    // }
 process::exit(1);
 }
 
